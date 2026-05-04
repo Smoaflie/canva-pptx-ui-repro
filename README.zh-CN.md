@@ -74,6 +74,15 @@ New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Get-ChildItem -Path .\canva-pptx-ui-repro -Force | Copy-Item -Destination $dest -Recurse -Force
 ```
 
+如果你当前已经在仓库根目录里，可以直接用这个更简单的版本：
+
+```powershell
+$skillsRoot = if ($env:CODEX_HOME) { Join-Path $env:CODEX_HOME "skills" } else { Join-Path $HOME ".codex\skills" }
+$dest = Join-Path $skillsRoot "canva-pptx-ui-repro"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Get-ChildItem -Force | Copy-Item -Destination $dest -Recurse -Force
+```
+
 安装后重启 Codex，让新 skill 被发现。之后可以让 Codex 使用 `$canva-ui-implementation`，也可以按 `SKILL.md` 中的 skill 名称 `canva-ui-implementation` 引用它。
 
 ## 快速开始

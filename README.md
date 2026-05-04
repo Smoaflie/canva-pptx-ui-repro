@@ -74,6 +74,15 @@ New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Get-ChildItem -Path .\canva-pptx-ui-repro -Force | Copy-Item -Destination $dest -Recurse -Force
 ```
 
+If you are already inside the repository root, use this simpler version instead:
+
+```powershell
+$skillsRoot = if ($env:CODEX_HOME) { Join-Path $env:CODEX_HOME "skills" } else { Join-Path $HOME ".codex\skills" }
+$dest = Join-Path $skillsRoot "canva-pptx-ui-repro"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Get-ChildItem -Force | Copy-Item -Destination $dest -Recurse -Force
+```
+
 Restart Codex after installation so the new skill is discovered. You can then ask Codex to use `$canva-ui-implementation` or reference the installed skill by its `SKILL.md` name, `canva-ui-implementation`.
 
 ## Quick Start
