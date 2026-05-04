@@ -54,7 +54,7 @@ The extractor uses only the Python standard library.
 Clone or copy this repository, then run the extractor directly with Python:
 
 ```powershell
-cd .\canva-pptx-png-workflow
+cd .\canva-pptx-ui-repro
 python .\scripts\extract_pptx_manifest.py --help
 ```
 
@@ -71,7 +71,7 @@ $skillsRoot = if ($env:CODEX_HOME) { Join-Path $env:CODEX_HOME "skills" } else {
 $dest = Join-Path $skillsRoot "canva-pptx-ui-repro"
 New-Item -ItemType Directory -Force -Path $skillsRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
-Get-ChildItem -Path .\canva-pptx-png-workflow -Force | Copy-Item -Destination $dest -Recurse -Force
+Get-ChildItem -Path .\canva-pptx-ui-repro -Force | Copy-Item -Destination $dest -Recurse -Force
 ```
 
 Restart Codex after installation so the new skill is discovered. You can then ask Codex to use `$canva-ui-implementation` or reference the installed skill by its `SKILL.md` name, `canva-ui-implementation`.
