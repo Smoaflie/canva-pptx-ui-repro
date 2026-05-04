@@ -1,0 +1,33 @@
+# Local input/output samples
+test.pptx
+test.png
+work/
+_scratch/
+issue/
+
+# Python cache and tooling
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local browser automation artifacts
+.playwright-cli/
+
+# Environment and OS noise
+.env
+.env.*
+.DS_Store
+Thumbs.db

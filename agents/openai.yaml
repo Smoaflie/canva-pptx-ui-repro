@@ -1,0 +1,4 @@
+interface:
+  display_name: "Canva PPTX UI Repro"
+  short_description: "Extract Canva PPTX layout for UI rebuilds"
+  default_prompt: "Use $canva-pptx-ui-repro to extract a Canva-exported PPTX into a manifest before rebuilding the UI in code."
