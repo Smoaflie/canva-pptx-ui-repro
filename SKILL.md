@@ -52,10 +52,12 @@ For Web implementations that consume manifest data directly, also read [manifest
 4. In `adaptation`, inspect the existing UI and component boundaries before changing code.
 5. Use the workflow for the selected mode; do not silently switch modes mid-run.
 6. Use the PPTX-derived manifest as the only layout contract.
-7. Do not generate a standalone preview, screenshot, or visual-review artifact by default. In mature projects, implement the change inside the existing UI surface and let the project's normal review path own previewing.
-8. Only create preview artifacts when the user explicitly asks for a dedicated reconstruction output, standalone artboard, or visual review.
-9. Do not assume every project environment can run a local preview, browser automation, screenshots, or vision inspection. Treat preview capture and vision review as optional follow-up paths, not default requirements.
-10. If a needed browser-ready field is missing from the manifest, stop before implementing a guessed fallback. Report: the missing field, affected element IDs, fidelity risk, and the fallback you would use if approved. Wait for user confirmation before proceeding.
+7. Pass the manifest coverage gate before writing UI code.
+8. Pass the no-substitution gate before replacing PPTX geometry, fills, strokes, text boxes, or extracted assets with ordinary CSS or icon-library equivalents.
+9. Do not generate a standalone preview, screenshot, or visual-review artifact by default. In mature projects, implement the change inside the existing UI surface and let the project's normal review path own previewing.
+10. Only create preview artifacts when the user explicitly asks for a dedicated reconstruction output, standalone artboard, or visual review.
+11. Do not assume every project environment can run a local preview, browser automation, screenshots, or vision inspection. Treat preview capture and vision review as optional follow-up paths, not default requirements.
+12. If a needed browser-ready field is missing from the manifest, stop before implementing a guessed fallback. Report: the missing field, affected element IDs, fidelity risk, and the fallback you would use if approved. Wait for user confirmation before proceeding.
 
 Environment rules:
 
@@ -70,22 +72,68 @@ Scope rules:
 - Use `adaptation` when the job is to adjust an existing codebase or screen toward the Canva reference with minimal, intentional edits.
 - Do not silently switch from one mode to the other mid-run.
 
+## Mandatory Gates
+
+### Manifest element coverage gate
+
+Before writing UI code from a manifest, list every visible manifest element and assign exactly one handling mode:
+
+| Manifest element | Type/role | Handling mode | Implementation target | Notes |
+|---|---|---|---|---|
+| `element.id` | background/card/text/icon/etc. | `direct asset` / `SVG geometry` / `CSS equivalent` / `intentionally omitted` | file/component/selector | reason, risk, or user-approved omission |
+
+No table means no UI code. Do not combine multiple visible elements into one vague row unless the manifest itself represents them as a group and each child is already accounted for elsewhere.
+
+Allowed handling modes:
+
+- `direct asset`: copy or reference the extracted asset from `extracted/assets/*`.
+- `SVG geometry`: render manifest `geometry`, `fills`, `strokes`, `transform`, and dimensions with SVG or a shape renderer.
+- `CSS equivalent`: allowed only after the no-substitution gate below passes.
+- `intentionally omitted`: allowed only when the element is invisible, redundant because another manifest element supersedes it, or the user explicitly approves omission.
+
+### No CSS substitute without manifest justification
+
+If a PPTX element has `geometry`, `fills`, or `strokes`, do not replace it with an ordinary CSS card, rounded rectangle, border, shadow, or icon-library primitive unless all of this is stated first:
+
+- Original manifest element `id`.
+- Why direct asset or `SVG geometry` rendering cannot be used.
+- What fidelity will be lost by the CSS substitute.
+- Confirmation from the user to use the substitute.
+
+This gate also applies in adaptation mode. Existing UI constraints may explain a proposed CSS substitute, but they do not remove the need to identify the manifest element and the expected visual loss.
+
+### Text box is a first-class element
+
+Treat every manifest text box as its own renderable element. Do not merely place approximate text into a nearby container. Map, at minimum:
+
+- `x`, `y`, `width`, and `height`
+- `text.fontSizePx` or the manifest's browser-ready font size field
+- horizontal/vertical alignment when present
+- `text.renderHints` for single-line, auto-fit, badge, label, or baseline-sensitive text
+
+If any required text field is missing, report the affected element ID, the visible risk, and the fallback before implementing.
+
+### Extracted asset priority
+
+For cameras, speech bubbles, icons, illustrations, masks, and product-specific visuals present in the PPTX, use copied or referenced extracted assets first. Do not replace them with `lucide`, emoji, CSS art, or another icon library unless the manifest lacks a usable asset or the user explicitly asks for a redesign.
+
 ## Reconstruction Workflow
 
 1. Treat `PPTX` as the structural source of truth for layout code generation.
 2. Extract one slide into `manifest.json` and assets.
 3. Before writing Web layout code, read [manifest-schema.md](references/manifest-schema.md) and [manifest-normalization-rules.md](references/manifest-normalization-rules.md).
-4. In Web `reconstruction`, the first implementation must read browser-ready fields from `manifest.json`: `page.outputWidth/outputHeight` define the canvas; each element's `x/y/width/height/zIndex/rotation/transform` drives placement; `fills`, `strokes.widthPx`, `text.*Px`, paragraph spacing `cssPx`, `image.source`, `fills.browserCrop`, `geometry`, and `fonts` drive rendering.
-5. Read `manifest.summary` first to understand output size, `renderableElementCount`, `topLevelElementCount`, `groupCount`, asset count, font count, and warnings before inspecting the full element tree. `elementCount` remains a backward-compatible alias for flattened visible renderable elements.
-6. Do not recalculate layout, text metrics, crop math, stroke units, or transforms from screenshots, viewport size, raw PPTX values, or subjective visual judgment.
-7. For a dedicated standalone reconstruction only, if no renderer exists, create the minimal static baseline first: `HTML + CSS`, with inline `SVG` only when needed for shapes.
-8. That standalone static baseline exists only to prove manifest-to-browser rendering semantics; do not add React component splitting, design-system wrappers, state management, complex responsiveness, or visual repair loops in this pass.
-9. For standalone reconstruction, move into React/Vite or the existing framework only after the static baseline correctly consumes the manifest. In mature project adaptation, edit the existing framework directly after mapping Canva regions to current components.
-10. Build the screen from `elements`, `fonts`, `page.background`, `fills`, `geometry`, and `transform`.
-11. For custom SVG strokes, prefer `stroke.widthPx` with `vector-effect="non-scaling-stroke"` unless the manifest explicitly requires SVG-internal stroke units.
-12. For single-line `spAutoFit` or tightly packed labels, prefer manifest `text.renderHints.baselineY` with `text.renderHints.dominantBaseline` over ordinary HTML line boxes.
-13. When visual review is explicitly requested and the implemented result lives inside a fixed-ratio target canvas or composition container, capture that container artifact only.
-14. If visual gaps cannot be explained by manifest elements, extracted assets, or normalized browser semantics, report the unexplained gap and proposed fallback instead of inventing layout.
+4. Read `manifest.summary` first to understand output size, `renderableElementCount`, `topLevelElementCount`, `groupCount`, asset count, font count, and warnings before inspecting the full element tree. `elementCount` remains a backward-compatible alias for flattened visible renderable elements.
+5. Create the manifest element coverage table before writing layout code.
+6. In Web `reconstruction`, the first implementation must read browser-ready fields from `manifest.json`: `page.outputWidth/outputHeight` define the canvas; each element's `x/y/width/height/zIndex/rotation/transform` drives placement; `fills`, `strokes.widthPx`, `text.*Px`, paragraph spacing `cssPx`, `image.source`, `fills.browserCrop`, `geometry`, and `fonts` drive rendering.
+7. Do not recalculate layout, text metrics, crop math, stroke units, or transforms from screenshots, viewport size, raw PPTX values, or subjective visual judgment.
+8. For a dedicated standalone reconstruction only, if no renderer exists, create the minimal static baseline first: `HTML + CSS`, with inline `SVG` only when needed for shapes.
+9. That standalone static baseline exists only to prove manifest-to-browser rendering semantics; do not add React component splitting, design-system wrappers, state management, complex responsiveness, or visual repair loops in this pass.
+10. For standalone reconstruction, move into React/Vite or the existing framework only after the static baseline correctly consumes the manifest. In mature project adaptation, edit the existing framework directly after mapping Canva regions to current components.
+11. Build the screen from `elements`, `fonts`, `page.background`, `fills`, `geometry`, and `transform`.
+12. For custom SVG strokes, prefer `stroke.widthPx` with `vector-effect="non-scaling-stroke"` unless the manifest explicitly requires SVG-internal stroke units.
+13. For single-line `spAutoFit` or tightly packed labels, prefer manifest `text.renderHints.baselineY` with `text.renderHints.dominantBaseline` over ordinary HTML line boxes.
+14. When visual review is explicitly requested and the implemented result lives inside a fixed-ratio target canvas or composition container, capture that container artifact only.
+15. If visual gaps cannot be explained by manifest elements, extracted assets, or normalized browser semantics, report the unexplained gap and proposed fallback instead of inventing layout.
 
 Web reconstruction hard contract:
 
@@ -98,12 +146,13 @@ Web reconstruction hard contract:
 1. Inspect the existing codebase before editing.
 2. Identify the current screen, component tree, reusable components, tokens, spacing system, and layout constraints.
 3. Map Canva regions to the current UI before editing.
-4. Extract manifest/assets from `PPTX` when helpful, and use that data as evidence for spacing, assets, typography, and visual ownership; do not generate a standalone preview as part of this default path.
-5. Preserve the existing component structure and design-system constraints unless the user explicitly wants a rebuilt screen.
-6. Make the smallest coherent UI changes that move the current screen toward the Canva reference.
-7. Do not force a full absolute-position rebuild unless that is the explicitly chosen strategy.
-8. When visual review is explicitly requested, use the platform-appropriate artifact if available; otherwise state that no preview artifact was produced.
-9. If visual gaps cannot be explained by component constraints, asset choice, missing extraction data, or the chosen component mapping, revisit the mapping before making more edits.
+4. Extract manifest/assets from `PPTX` when the reference is available, and use that data as evidence for spacing, assets, typography, and visual ownership; do not generate a standalone preview as part of this default path.
+5. Create the manifest element coverage table for the Canva-derived visible elements that will affect the adaptation.
+6. Preserve the existing component structure and design-system constraints unless the user explicitly wants a rebuilt screen.
+7. Make the smallest coherent UI changes that move the current screen toward the Canva reference.
+8. Do not force a full absolute-position rebuild unless that is the explicitly chosen strategy.
+9. When visual review is explicitly requested, use the platform-appropriate artifact if available; otherwise state that no preview artifact was produced.
+10. If visual gaps cannot be explained by component constraints, asset choice, missing extraction data, or the chosen component mapping, revisit the mapping before making more edits.
 
 ## Handling Cases
 
@@ -136,6 +185,7 @@ Web reconstruction hard contract:
 - Badge counters, icon-adjacent numbers, and tightly packed single-line labels are high-risk for ordinary HTML flow.
 - In Web output, escalate those cases to SVG text or another explicitly baseline-controlled strategy when normal HTML line boxes drift.
 - When `text.renderHints.baselineY` and `text.renderHints.dominantBaseline` exist, apply both to SVG text inside the element box.
+- Check single-line text boxes against `renderHints` before claiming alignment parity.
 
 ### When an element carries `transform.flipH` or `transform.flipV`
 
@@ -148,6 +198,12 @@ Web reconstruction hard contract:
 - Treat it as an extraction failure.
 - Improve the extractor and regenerate the manifest.
 - Do not add stickers, icons, textures, or spacing from an external image by eye.
+
+### When an extracted asset exists
+
+- Copy or reference the extracted asset before considering icon libraries or CSS approximations.
+- Use asset filenames and manifest element IDs in the coverage table so the mapping is auditable.
+- If replacing an asset is unavoidable, pass the no-substitution gate first.
 
 ### When the task is to adjust an existing UI rather than rebuild the page
 
@@ -176,3 +232,18 @@ Web reconstruction hard contract:
 - Check the dominant subject's silhouette, width-height proportion, and major negative spaces before claiming parity.
 - Do not hide obvious drift behind vague wording like "close enough" without evidence.
 - If the result is wrong because the manifest is incomplete, fix the manifest pipeline before polishing the renderer.
+
+## Pre-Final Manifest Checklist
+
+Before the final response, confirm each item against the manifest coverage table or explicitly state why it does not apply:
+
+- Page size and aspect ratio.
+- Background.
+- Character/hero assets and animation.
+- Speech bubbles.
+- Card container shapes.
+- Card borders and corner radii.
+- Card text boxes.
+- Icon assets and positions.
+- Button shapes and text.
+- Scroll regions.
